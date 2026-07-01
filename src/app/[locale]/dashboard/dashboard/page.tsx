@@ -1,0 +1,266 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useTranslations } from 'next-intl';
+import { createClient } from '@/lib/supabase/client';
+import { useTheme } from '@/contexts/ThemeContext';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+  Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area
+} from 'recharts';
+import { ListTodo, CheckCircle, Clock, AlertTriangle, TrendingUp, Users } from 'lucide-react';
+
+interface DashboardData {
+  totalTasks: number;
+  completedTasks: number;
+  inProgressTasks: number;
+  overdueTasks: number;
+  statusDistribution: { name: string; value: number; color: string }[];
+  departmentPerformance: { name: string; completed: number; inProgress: number; total: number }[];
+  weeklyProgress: { day: string; completed: number; created: number }[];
+  priorityDistribution: { name: string; value: number; color: string }[];
+  recentActivities: { action: string; employee: string; time: string }[];
+}
+
+export default function DashboardPage() {
+  const t = useTranslations('dashboard');
+  const { theme } = useTheme();
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const supabase = createClient();
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      // Fetch all tasks
+      const { data: tasks } = await supabase
+        .from('tasks')
+        .select('*, task_statuses(name, name_en, color), departments(name, name_en), employees(full_name)')
+        .eq('is_active', true);
+
+      const { data: statuses } = await supabase
+        .from('task_statuses')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order');
+
+      const { data: departments } = await supabase
+        .from('departments')
+        .select('*')
+        .eq('is_active', true);
+
+      if (!tasks || !statuses) return;
+
+      // Status distribution
+      const statusDist = statuses.map((status) => ({
+        name: status.name_en || status.name,
+        value: tasks.filter((t) => t.status_id === status.id).length,
+        color: status.color,
+      }));
+
+      // Department performance
+      const deptPerf = (departments || []).map((dept) => {
+        const deptTasks = tasks.filter((t) => t.department_id === dept.id);
+        return {
+          name: dept.name_en || dept.name,
+          completed: deptTasks.filter((t) => t.progress_percentage === 100).length,
+          inProgress: deptTasks.filter((t) => t.progress_percentage > 0 && t.progress_percentage < 100).length,
+          total: deptTasks.length,
+        };
+      });
+
+      // Weekly progress (last 7 days)
+      const weeklyProgress = [];
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        const dateStr = date.toISOString().split('T')[0];
+        const dayName = date.toLocaleDateString('en', { weekday: 'short' });
+        
+        const created = tasks.filter((t) => t.created_at?.startsWith(dateStr)).length;
+        const completed = tasks.filter((t) => t.updated_at?.startsWith(dateStr) && t.progress_percentage === 100).length;
+        
+        weeklyProgress.push({ day: dayName, created, completed });
+      }
+
+      // Priority distribution
+      const priorities = [
+        { name: 'Low', color: '#10B981' },
+        { name: 'Medium', color: '#3B82F6' },
+        { name: 'High', color: '#F59E0B' },
+        { name: 'Urgent', color: '#EF4444' },
+      ];
+      const priorityDist = priorities.map((p) => ({
+        name: p.name,
+        value: tasks.filter((t) => t.priority === p.name.toLowerCase()).length,
+        color: p.color,
+      }));
+
+      const totalTasks = tasks.length;
+      const completedTasks = tasks.filter((t) => t.progress_percentage === 100).length;
+      const inProgressTasks = tasks.filter((t) => t.progress_percentage > 0 && t.progress_percentage < 100).length;
+      const overdueTasks = tasks.filter((t) => {
+        if (!t.end_date || t.progress_percentage === 100) return false;
+        return new Date(t.end_date) < new Date();
+      }).length;
+
+      setData({
+        totalTasks,
+        completedTasks,
+        inProgressTasks,
+        overdueTasks,
+        statusDistribution: statusDist,
+        departmentPerformance: deptPerf,
+        weeklyProgress,
+        priorityDistribution: priorityDist,
+        recentActivities: [],
+      });
+    } catch (error) {
+      console.error('Error loading dashboard:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-64">Loading...</div>;
+  }
+
+  if (!data) return null;
+
+  const statCards = [
+    { title: t('totalTasks'), value: data.totalTasks, icon: ListTodo, color: theme.primaryColor },
+    { title: t('completedTasks'), value: data.completedTasks, icon: CheckCircle, color: '#10B981' },
+    { title: t('inProgressTasks'), value: data.inProgressTasks, icon: Clock, color: '#3B82F6' },
+    { title: t('overdueTasks'), value: data.overdueTasks, icon: AlertTriangle, color: '#EF4444' },
+  ];
+
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">{t('title')}</h1>
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        {statCards.map((card, idx) => (
+          <Card key={idx} className="border-0 shadow-md hover:shadow-lg transition-shadow">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">{card.title}</p>
+                  <p className="text-3xl font-bold mt-1">{card.value}</p>
+                </div>
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: card.color + '20' }}>
+                  <card.icon className="w-6 h-6" style={{ color: card.color }} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Charts Row 1 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Status Distribution - Pie Chart */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg">{t('taskDistribution')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={data.statusDistribution.filter(s => s.value > 0)}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {data.statusDistribution.filter(s => s.value > 0).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Priority Distribution - Donut Chart */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg">{t('tasksByPriority')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <PieChart>
+                <Pie
+                  data={data.priorityDistribution.filter(p => p.value > 0)}
+                  cx="50%"
+                  cy="50%"
+                  outerRadius={100}
+                  dataKey="value"
+                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                >
+                  {data.priorityDistribution.filter(p => p.value > 0).map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Charts Row 2 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Department Performance - Bar Chart */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg">{t('departmentPerformance')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={data.departmentPerformance}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="name" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="completed" fill="#10B981" name="Completed" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="inProgress" fill="#3B82F6" name="In Progress" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+
+        {/* Weekly Progress - Area Chart */}
+        <Card className="border-0 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-lg">{t('weeklyProgress')}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={300}>
+              <AreaChart data={data.weeklyProgress}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="day" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Area type="monotone" dataKey="completed" stackId="1" stroke="#10B981" fill="#10B981" fillOpacity={0.6} />
+                <Area type="monotone" dataKey="created" stackId="2" stroke="#3B82F6" fill="#3B82F6" fillOpacity={0.6} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
