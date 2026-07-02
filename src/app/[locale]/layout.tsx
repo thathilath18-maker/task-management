@@ -15,12 +15,12 @@ export const metadata: Metadata = {
 
 export default async function LocaleLayout({
   children,
-  params,  // ✅ ປ່ຽນຈາກ params: { locale }
+  params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ locale: string }>;  // ✅ ເປັນ Promise
+  params: Promise<{ locale: string }>;
 }) {
-  const { locale } = await params;  // ✅ await ກ່ອນໃຊ້!
+  const { locale } = await params;
 
   if (!locales.includes(locale)) notFound();
 
