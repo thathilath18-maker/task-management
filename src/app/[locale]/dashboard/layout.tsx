@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -25,15 +25,21 @@ const menuItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations('common');
-  const { employee, signOut } = useAuth();
+  const { employee, signOut, loading: authLoading } = useAuth();
   const { theme, updateTheme } = useTheme();
   const params = useParams();
   const router = useRouter();
   const pathname = usePathname();
   const locale = params.locale as string;
   const [sidebarOpen, setSidebarOpen] = useState(!theme.sidebarCollapsed);
+  const [mounted, setMounted] = useState(false);
 
-  const isActive = (path: string) => pathname.includes(path);
+  // ປ້ອງກັນ hydration error
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const isActive = (path: string) => pathname?.includes(path);
 
   const navigate = (path: string) => {
     router.push(`/${locale}${path}`);
@@ -46,9 +52,44 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   const changeLocale = (newLocale: string) => {
-    const newPath = pathname.replace(`/${locale}`, `/${newLocale}`);
-    router.push(newPath);
+    const newPath = pathname?.replace(`/${locale}`, `/${newLocale}`);
+    if (newPath) {
+      router.push(newPath);
+    }
   };
+
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      router.push(`/${locale}/login`);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
+  // ສະແດງ loading ໃນຂະນະທີ່ກຳລັງໂຫຼດ
+  if (!mounted || authLoading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">ກຳລັງໂຫຼດ...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ສະແດງ error ຖ້າບໍ່ມີ employee data
+  if (!employee) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">ບໍ່ພົບຂໍ້ມູນຜູ້ໃຊ້</p>
+          <Button onClick={handleSignOut}>Logout</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
@@ -101,8 +142,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </Avatar>
             {sidebarOpen && (
               <div className="ml-3 flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{employee?.full_name}</p>
-                <p className="text-xs text-gray-500 truncate">{employee?.role}</p>
+                <p className="text-sm font-medium truncate">{employee?.full_name || 'User'}</p>
+                <p className="text-xs text-gray-500 truncate">{employee?.role || 'Employee'}</p>
               </div>
             )}
           </div>
@@ -131,7 +172,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </SelectContent>
             </Select>
 
-            <Button variant="ghost" size="icon" onClick={signOut} title={t('logout')}>
+            <Button variant="ghost" size="icon" onClick={handleSignOut} title={t('logout')}>
               <LogOut className="w-5 h-5" />
             </Button>
           </div>
