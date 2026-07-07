@@ -25,7 +25,7 @@ const menuItems = [
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const t = useTranslations('common');
-  const { employee, signOut, loading: authLoading } = useAuth();
+  const { employee, signOut, isloading: authLoading } = useAuth();
   const { theme, updateTheme } = useTheme();
   const params = useParams();
   const router = useRouter();
