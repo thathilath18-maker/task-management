@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
@@ -8,7 +8,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, LineChart, Line, AreaChart, Area
+  Tooltip, Legend, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 import { ListTodo, CheckCircle, Clock, AlertTriangle, TrendingUp, Users, Plus } from 'lucide-react';
 
@@ -35,17 +35,56 @@ export default function DashboardPage() {
     loadDashboardData();
   }, []);
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = async (retryCount = 0) => {
     try {
       console.log('🔍 Loading dashboard data...');
       
+      // ຶງຂໍ້ມນ tasks - ສະເພາະ columns ທີ່ຈຳເປັນ
       const { data: tasks, error: tasksError } = await supabase
         .from('tasks')
-        .select('*, task_statuses(name, name_en, color), departments(name, name_en), employees(full_name)')
-        .eq('is_active', true);
+        .select(`
+          id,
+          title,
+          description,
+          status_id,
+          department_id,
+          priority,
+          progress_percentage,
+          start_date,
+          end_date,
+          created_at,
+          updated_at,
+          is_active,
+          task_statuses (
+            id,
+            name,
+            name_en,
+            color
+          ),
+          departments (
+            id,
+            name,
+            name_en
+          ),
+          employees (
+            id,
+            full_name
+          )
+        `)
+        .eq('is_active', true)
+        .limit(100);
 
-      if (tasksError) console.error('Tasks error:', tasksError);
-      else console.log('✅ Tasks loaded:', tasks?.length || 0);
+      if (tasksError) {
+        console.error('❌ Tasks error:', tasksError);
+        // ລອງໃໝ່້າຜິດພາດ (ສູງສຸດ 3 ຄັ້ງ)
+        if (retryCount < 3) {
+          console.log(`Retrying... (${retryCount + 1}/3)`);
+          setTimeout(() => loadDashboardData(retryCount + 1), 1000);
+          return;
+        }
+      } else {
+        console.log('✅ Tasks loaded:', tasks?.length || 0);
+      }
 
       const { data: statuses, error: statusesError } = await supabase
         .from('task_statuses')
@@ -53,15 +92,20 @@ export default function DashboardPage() {
         .eq('is_active', true)
         .order('sort_order');
 
-      if (statusesError) console.error('Statuses error:', statusesError);
-      else console.log('✅ Statuses loaded:', statuses?.length || 0);
+      if (statusesError) {
+        console.error('❌ Statuses error:', statusesError);
+      } else {
+        console.log('✅ Statuses loaded:', statuses?.length || 0);
+      }
 
       const { data: departments } = await supabase
         .from('departments')
         .select('*')
         .eq('is_active', true);
 
+      // ຖ້າບໍ່ມີຂໍ້ມູນ → ສະແດງ empty state
       if (!tasks || tasks.length === 0) {
+        console.log('⚠️ No tasks found - showing empty state');
         setData({
           totalTasks: 0,
           completedTasks: 0,
@@ -77,16 +121,19 @@ export default function DashboardPage() {
       }
 
       if (!statuses) {
+        console.log('⚠️ No statuses found');
         setLoading(false);
         return;
       }
 
+      // Status distribution
       const statusDist = statuses.map((status) => ({
         name: status.name_en || status.name,
         value: tasks.filter((t) => t.status_id === status.id).length,
         color: status.color,
       }));
 
+      // Department performance
       const deptPerf = (departments || []).map((dept) => {
         const deptTasks = tasks.filter((t) => t.department_id === dept.id);
         return {
@@ -97,6 +144,7 @@ export default function DashboardPage() {
         };
       });
 
+      // Weekly progress (last 7 days)
       const weeklyProgress = [];
       for (let i = 6; i >= 0; i--) {
         const date = new Date();
@@ -110,6 +158,7 @@ export default function DashboardPage() {
         weeklyProgress.push({ day: dayName, created, completed });
       }
 
+      // Priority distribution
       const priorities = [
         { name: 'Low', color: '#10B981' },
         { name: 'Medium', color: '#3B82F6' },
@@ -147,17 +196,26 @@ export default function DashboardPage() {
     }
   };
 
+  // ຊ້ useMemo ເພື່ອ prevent re-renders
+  const statCards = useMemo(() => [
+    { title: 'Total Tasks', value: data?.totalTasks || 0, icon: ListTodo, color: 'from-blue-500 to-blue-600' },
+    { title: 'Completed', value: data?.completedTasks || 0, icon: CheckCircle, color: 'from-green-500 to-green-600' },
+    { title: 'In Progress', value: data?.inProgressTasks || 0, icon: Clock, color: 'from-blue-400 to-blue-500' },
+    { title: 'Overdue', value: data?.overdueTasks || 0, icon: AlertTriangle, color: 'from-red-500 to-red-600' },
+  ], [data]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">ກຳລັງໂຫດ...</p>
+          <p className="mt-4 text-gray-600">ກຳລັງໂຫຼດ...</p>
         </div>
       </div>
     );
   }
 
+  // Empty State
   if (!data || data.totalTasks === 0) {
     return (
       <div className="space-y-6">
@@ -176,7 +234,10 @@ export default function DashboardPage() {
                 ຍັງບໍ່ມີໜ້າວຽກໃນລະບົບ. ເລີ່ມຕົ້ນສ້າງໜ້າວຽກທຳອິດຂອງເຈົ້າເລີຍ!
               </p>
               <button 
-                onClick={() => router.push('/tasks')}
+                onClick={() => {
+                  router.prefetch('/tasks');
+                  router.push('/tasks');
+                }}
                 className="inline-flex items-center px-6 py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
               >
                 <Plus className="w-5 h-5 mr-2" />
@@ -187,79 +248,35 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm font-medium">Total Tasks</p>
-                  <p className="text-4xl font-bold mt-2">0</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-                  <ListTodo className="w-8 h-8" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-green-500 to-green-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-100 text-sm font-medium">Completed</p>
-                  <p className="text-4xl font-bold mt-2">0</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-                  <CheckCircle className="w-8 h-8" />
+          {statCards.map((card, idx) => (
+            <Card key={idx} className="border-0 shadow-lg overflow-hidden">
+              <div className={`bg-gradient-to-br ${card.color} p-6 text-white`}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/80 text-sm font-medium">{card.title}</p>
+                    <p className="text-4xl font-bold mt-2">0</p>
+                  </div>
+                  <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
+                    <card.icon className="w-8 h-8" />
+                  </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-blue-400 to-blue-500 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-100 text-sm font-medium">In Progress</p>
-                  <p className="text-4xl font-bold mt-2">0</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-                  <Clock className="w-8 h-8" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card className="border-0 shadow-lg bg-gradient-to-br from-red-500 to-red-600 text-white">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-red-100 text-sm font-medium">Overdue</p>
-                  <p className="text-4xl font-bold mt-2">0</p>
-                </div>
-                <div className="w-14 h-14 rounded-2xl bg-white/20 flex items-center justify-center">
-                  <AlertTriangle className="w-8 h-8" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+            </Card>
+          ))}
         </div>
       </div>
     );
   }
-
-  const statCards = [
-    { title: 'Total Tasks', value: data.totalTasks, icon: ListTodo, color: 'from-blue-500 to-blue-600', bg: 'bg-blue-50' },
-    { title: 'Completed', value: data.completedTasks, icon: CheckCircle, color: 'from-green-500 to-green-600', bg: 'bg-green-50' },
-    { title: 'In Progress', value: data.inProgressTasks, icon: Clock, color: 'from-blue-400 to-blue-500', bg: 'bg-blue-50' },
-    { title: 'Overdue', value: data.overdueTasks, icon: AlertTriangle, color: 'from-red-500 to-red-600', bg: 'bg-red-50' },
-  ];
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
         <button 
-          onClick={() => router.push('/tasks')}
+          onClick={() => {
+            router.prefetch('/tasks');
+            router.push('/tasks');
+          }}
           className="inline-flex items-center px-4 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
         >
           <Plus className="w-5 h-5 mr-2" />
@@ -267,6 +284,7 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      {/* Stat Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {statCards.map((card, idx) => (
           <Card key={idx} className="border-0 shadow-lg overflow-hidden">
@@ -285,7 +303,9 @@ export default function DashboardPage() {
         ))}
       </div>
 
+      {/* Charts Row 1 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Status Distribution - Pie Chart */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b border-gray-100">
             <CardTitle className="text-lg flex items-center">
@@ -317,6 +337,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Priority Distribution - Donut Chart */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b border-gray-100">
             <CardTitle className="text-lg flex items-center">
@@ -346,7 +367,9 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* Charts Row 2 */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Department Performance - Bar Chart */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b border-gray-100">
             <CardTitle className="text-lg flex items-center">
@@ -369,6 +392,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
+        {/* Weekly Progress - Area Chart */}
         <Card className="border-0 shadow-lg">
           <CardHeader className="border-b border-gray-100">
             <CardTitle className="text-lg flex items-center">

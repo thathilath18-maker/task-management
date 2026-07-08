@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -16,14 +16,14 @@ import { cn } from '@/lib/utils';
 
 const menuItems = [
   { key: 'dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { key: 'tasks', icon: ListTodo, path: '/dashboard/tasks' },           // ✅ ແກ້ໄຂແລ້ວ
-  { key: 'employees', icon: Users, path: '/dashboard/employees' },      // ✅ ແກ້ໄຂແລ້ວ
-  { key: 'surveys', icon: ClipboardList, path: '/dashboard/surveys' },  // ✅ ແກ້ໄຂແລ້ວ
-  { key: 'reports', icon: BarChart3, path: '/dashboard/reports' },      // ✅ ແກ້ໄຂແລ້ວ
-  { key: 'settings', icon: Settings, path: '/dashboard/settings' },     // ✅ ແກ້ໄຂແລ້ວ
+  { key: 'tasks', icon: ListTodo, path: '/tasks' },
+  { key: 'employees', icon: Users, path: '/employees' },
+  { key: 'surveys', icon: ClipboardList, path: '/surveys' },
+  { key: 'reports', icon: BarChart3, path: '/reports' },
+  { key: 'settings', icon: Settings, path: '/settings' },
 ];
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardLayout({ children }: { children: ReactNode }) {
   const t = useTranslations('common');
   const { employee, signOut, isLoading: authLoading } = useAuth();
   const { theme, updateTheme } = useTheme();
@@ -33,6 +33,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const locale = params.locale as string;
   const [sidebarOpen, setSidebarOpen] = useState(!theme.sidebarCollapsed);
   const [mounted, setMounted] = useState(false);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // ປ້ອງກັນ hydration error
   useEffect(() => {
@@ -42,7 +43,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const isActive = (path: string) => pathname?.includes(path);
 
   const navigate = (path: string) => {
+    setIsNavigating(true);
+    // Prefetch ກ່ອນ navigate
+    router.prefetch(`/${locale}${path}`);
     router.push(`/${locale}${path}`);
+    // Reset ຫຼັງຈາກ 500ms
+    setTimeout(() => setIsNavigating(false), 500);
   };
 
   const toggleSidebar = () => {
@@ -67,19 +73,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   };
 
-  // ສະແດງ loading ໃນຂະນະທີ່ກຳລັງໂຫຼດ
+  // ະແດງ loading ໃນຂະນະທີ່ກຳລັງໂຫຼດ
   if (!mounted || authLoading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">ກຳລັງໂຫຼດ...</p>
+          <p className="mt-4 text-gray-600">ກຳລັງຫຼດ...</p>
         </div>
       </div>
     );
   }
 
-  // ສະແດງ error ຖ້າບໍ່ມີ employee data
+  // ສະແດງ error ້າບໍ່ມີ employee data
   if (!employee) {
     return (
       <div className="flex items-center justify-center h-screen">
@@ -93,10 +99,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-50 dark:bg-gray-900">
+      {/* Loading bar ເວລາ navigate */}
+      {isNavigating && (
+        <div className="fixed top-0 left-0 right-0 h-1 bg-blue-600 animate-pulse z-50" />
+      )}
+      
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300',
+          'fixed inset-y-0 left-0 z-40 flex flex-col bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300',
           sidebarOpen ? 'w-64' : 'w-20'
         )}
       >
@@ -168,7 +179,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="en">🇺🇸 English</SelectItem>
-                <SelectItem value="lo">🇱🇦 ລາວ</SelectItem>
+                <SelectItem value="lo">🇱🇦 າວ</SelectItem>
               </SelectContent>
             </Select>
 
