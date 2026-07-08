@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -29,31 +30,74 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const supabase = createClient();
+  const router = useRouter();
 
   useEffect(() => {
     loadDashboardData();
   }, []);
 
   const loadDashboardData = async () => {
-    try {
-      // Fetch all tasks
-      const { data: tasks } = await supabase
-        .from('tasks')
-        .select('*, task_statuses(name, name_en, color), departments(name, name_en), employees(full_name)')
-        .eq('is_active', true);
+  try {
+    console.log('🔍 Loading dashboard data...');
+    
+    // Fetch all tasks
+    const { data: tasks, error: tasksError } = await supabase
+      .from('tasks')
+      .select('*, task_statuses(name, name_en, color), departments(name, name_en), employees(full_name)')
+      .eq('is_active', true);
 
-      const { data: statuses } = await supabase
-        .from('task_statuses')
-        .select('*')
-        .eq('is_active', true)
-        .order('sort_order');
+    if (tasksError) {
+      console.error('❌ Tasks error:', tasksError);
+    } else {
+      console.log('✅ Tasks loaded:', tasks?.length || 0);
+    }
 
-      const { data: departments } = await supabase
-        .from('departments')
-        .select('*')
-        .eq('is_active', true);
+    const { data: statuses, error: statusesError } = await supabase
+      .from('task_statuses')
+      .select('*')
+      .eq('is_active', true)
+      .order('sort_order');
 
-      if (!tasks || !statuses) return;
+    if (statusesError) {
+      console.error('❌ Statuses error:', statusesError);
+    } else {
+      console.log('✅ Statuses loaded:', statuses?.length || 0);
+    }
+
+    const { data: departments, error: departmentsError } = await supabase
+      .from('departments')
+      .select('*')
+      .eq('is_active', true);
+
+    if (departmentsError) {
+      console.error('❌ Departments error:', departmentsError);
+    } else {
+      console.log('✅ Departments loaded:', departments?.length || 0);
+    }
+
+    // ຖ້າບໍ່ມີຂໍ້ມູນ → ສະແດງ empty state
+    if (!tasks || tasks.length === 0) {
+      console.log('⚠️ No tasks found - showing empty state');
+      setData({
+        totalTasks: 0,
+        completedTasks: 0,
+        inProgressTasks: 0,
+        overdueTasks: 0,
+        statusDistribution: [],
+        departmentPerformance: [],
+        weeklyProgress: [],
+        priorityDistribution: [],
+        recentActivities: [],
+      });
+      setLoading(false);
+      return;
+    }
+
+    if (!statuses) {
+      console.log('⚠️ No statuses found');
+      setLoading(false);
+      return;
+    }
 
       // Status distribution
       const statusDist = statuses.map((status) => ({
@@ -127,10 +171,96 @@ export default function DashboardPage() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-64">Loading...</div>;
-  }
+  return <div className="flex items-center justify-center h-64">Loading...</div>;
+}
 
-  if (!data) return null;
+// ແທນທີ່ຈະ return null → ສະແດງ empty state
+if (!data || data.totalTasks === 0) {
+  return (
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold">{t('title')}</h1>
+      
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+        <div className="flex items-center">
+          <div className="text-4xl mr-4">📋</div>
+          <div>
+            <h2 className="text-lg font-semibold text-blue-900">
+              ຍິນດີຕ້ອນຮັບ!
+            </h2>
+            <p className="text-blue-700 mt-1">
+              ຍັງບໍ່ມີໜ້າວຽກໃນລະບົບ. ເລີ່ມຕົ້ນສ້າງໜ້າວຽກທຳອິດຂອງເຈົ້າ!
+            </p>
+            <button 
+              onClick={() => router.push('/tasks')}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              + ສ້າງໜ້າວຽກໃໝ່
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Stat Cards (empty state) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">{t('totalTasks')}</p>
+                <p className="text-3xl font-bold mt-1">0</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-50">
+                <ListTodo className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">{t('completedTasks')}</p>
+                <p className="text-3xl font-bold mt-1">0</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-green-50">
+                <CheckCircle className="w-6 h-6 text-green-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">{t('inProgressTasks')}</p>
+                <p className="text-3xl font-bold mt-1">0</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-blue-50">
+                <Clock className="w-6 h-6 text-blue-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Card className="border-0 shadow-md">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-500">{t('overdueTasks')}</p>
+                <p className="text-3xl font-bold mt-1">0</p>
+              </div>
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center bg-red-50">
+                <AlertTriangle className="w-6 h-6 text-red-600" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
 
   const statCards = [
     { title: t('totalTasks'), value: data.totalTasks, icon: ListTodo, color: theme.primaryColor },
