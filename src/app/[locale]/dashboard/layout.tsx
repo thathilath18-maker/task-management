@@ -16,11 +16,11 @@ import { cn } from '@/lib/utils';
 
 const menuItems = [
   { key: 'dashboard', icon: LayoutDashboard, path: '/dashboard' },
-  { key: 'tasks', icon: ListTodo, path: '/tasks' },
-  { key: 'employees', icon: Users, path: '/employees' },
-  { key: 'surveys', icon: ClipboardList, path: '/surveys' },
-  { key: 'reports', icon: BarChart3, path: '/reports' },
-  { key: 'settings', icon: Settings, path: '/settings' },
+  { key: 'tasks', icon: ListTodo, path: '/dashboard/tasks' },           // ✅ ແກ້ໄຂແລ້ວ
+  { key: 'employees', icon: Users, path: '/dashboard/employees' },      // ✅ ແກ້ໄຂແລ້ວ
+  { key: 'surveys', icon: ClipboardList, path: '/dashboard/surveys' },  // ✅ ແກ້ໄຂແລ້ວ
+  { key: 'reports', icon: BarChart3, path: '/dashboard/reports' },      // ✅ ແກ້ໄຂແລ້ວ
+  { key: 'settings', icon: Settings, path: '/dashboard/settings' },     // ✅ ແກ້ໄຂແລ້ວ
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
