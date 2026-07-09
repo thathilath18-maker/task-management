@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -15,6 +16,8 @@ import Link from 'next/link';
 export default function LoginPage() {
   const t = useTranslations('auth');
   const router = useRouter();
+  const params = useParams();
+  const locale = params.locale as string;
   const supabase = createClient();
 
   const [loading, setLoading] = useState(false);
@@ -27,7 +30,6 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validation
     if (!formData.email.trim()) {
       toast.error('ກະລຸນາໃສ່ email');
       return;
@@ -62,9 +64,8 @@ export default function LoginPage() {
       if (data.user) {
         toast.success('ເຂົ້າສູ່ລະບົບສຳເລັດ!');
         
-        // ລໍຖ້າເລັກນ້ອຍ ແລ້ວ redirect
         setTimeout(() => {
-          router.push('/dashboard');
+          router.push(`/${locale}/dashboard`);
         }, 1000);
       }
     } catch (error: any) {
@@ -88,14 +89,13 @@ export default function LoginPage() {
             {t('loginTitle') || 'ເຂົ້າສູ່ລະບົບ'}
           </CardTitle>
           <CardDescription className="text-center text-gray-600">
-            {t('loginDescription') || 'ລົງື່ເຂົ້າໃຊ້ງານລະບົບຈັດການໜ້າວກ'}
+            {t('loginDescription') || 'ລົງຊື່ເຂົ້າໃຊ້ງານລະບົບຈັດການ້າວຽກ'}
           </CardDescription>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-5">
             <div className="space-y-4">
-              {/* Email Field */}
               <div className="space-y-2">
                 <Label htmlFor="email" className="text-sm font-medium text-gray-700">
                   <Mail className="w-4 h-4 inline mr-2" />
@@ -113,7 +113,6 @@ export default function LoginPage() {
                 />
               </div>
 
-              {/* Password Field */}
               <div className="space-y-2">
                 <Label htmlFor="password" className="text-sm font-medium text-gray-700">
                   <Lock className="w-4 h-4 inline mr-2" />
@@ -149,7 +148,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Forgot Password Link */}
             <div className="flex justify-end">
               <Link 
                 href="/forgot-password"
@@ -159,7 +157,6 @@ export default function LoginPage() {
               </Link>
             </div>
 
-            {/* Submit Button */}
             <Button
               type="submit"
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold py-3 h-11 shadow-lg hover:shadow-xl transition-all"
@@ -171,7 +168,7 @@ export default function LoginPage() {
                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                   </svg>
-                  ກຳລັງເຂົ້າສ່ລະບົບ...
+                  ກຳລັງເຂົ້າສູ່ລະບົບ...
                 </span>
               ) : (
                 <span className="flex items-center justify-center">
@@ -181,7 +178,6 @@ export default function LoginPage() {
               )}
             </Button>
 
-            {/* Divider */}
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-gray-200"></div>
@@ -191,10 +187,9 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* Sign Up Link */}
             <div className="text-center">
               <p className="text-sm text-gray-600">
-                ຍັງບໍ່ມີບັນຊີ?{' '}
+                ັງບໍ່ມີບັນຊີ?{' '}
                 <Link 
                   href="/signup" 
                   className="text-blue-600 hover:text-blue-700 font-semibold hover:underline transition-all"
@@ -205,11 +200,10 @@ export default function LoginPage() {
             </div>
           </form>
 
-          {/* Additional Info */}
           <div className="mt-6 pt-6 border-t border-gray-100">
             <div className="flex items-center justify-center space-x-2 text-xs text-gray-500">
               <span>🔒</span>
-              <span>ການເຂົ້າສູ່ລະບົບແມ່ນປອດໄພ ລະ ປົກປ້ອງຂໍ້ມູນ</span>
+              <span>ການເຂົ້າສູ່ລະບົບແມ່ນປອດໄພ ແລະ ປົກປ້ອງຂໍ້ມູນ</span>
             </div>
           </div>
         </CardContent>
